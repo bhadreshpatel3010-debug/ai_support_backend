@@ -1,6 +1,18 @@
-# AI Support Backend
+﻿# AI Support Backend
 
-Step-by-step guide and progress log for building the AI support backend.
+A FastAPI-based customer support backend that uses PostgreSQL with pgvector for semantic knowledge search and the Google Gemini API for generated answers.
+
+## Features
+
+- User registration and password hashing
+- Login with JWT bearer authentication
+- PostgreSQL database initialization
+- pgvector document embeddings
+- Paragraph-based knowledge ingestion
+- Semantic retrieval of relevant knowledge chunks
+- Chat history stored per authenticated user
+- Grounded Gemini responses using retrieved company knowledge
+- Interactive Swagger and ReDoc API documentation
 
 ## Project Structure
 
@@ -14,113 +26,73 @@ ai_support_backend/
 │   ├── models.py
 │   ├── rag_service.py
 │   └── schemas.py
-├── docs/
-├── requirements.txt
-└── README.md
+├── README.md
+└── requirements.txt
 ```
 
-## Step 1: Project Setup
+## Technology Stack
 
-The project folder and Python environment are ready.
+- FastAPI and Uvicorn
+- SQLAlchemy
+- PostgreSQL and pgvector
+- Passlib and bcrypt
+- PyJWT
+- Pydantic
+- Google GenAI SDK
+- python-dotenv
 
-### Install Required Packages
+## Prerequisites
 
-The following dependencies were installed:
+- Python 3.10 or newer
+- PostgreSQL
+- pgvector installed for the PostgreSQL server
+- A Google Gemini API key
+
+## Installation
+
+Create and activate a virtual environment:
 
 ```powershell
-pip install fastapi uvicorn sqlalchemy psycopg[binary] pgvector passlib[bcrypt] pyjwt python-dotenv google-genai
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
 
-Main technologies:
+Install the dependencies:
 
-- FastAPI — REST API framework
-- Uvicorn — ASGI server
-- SQLAlchemy — database ORM
-- PostgreSQL + pgvector — database and vector storage
-- Passlib + bcrypt — password hashing
-- PyJWT — authentication tokens
-- python-dotenv — environment variable management
-- Google GenAI — AI model integration
+```powershell
+pip install -r requirements.txt
+```
 
-## Step 2: Add Environment Variables
+## Environment Configuration
 
 Create a `.env` file in the project root. Do not commit this file to Git.
 
 ```text
-DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:PORT/DATABASE
-JWT_SECRET_KEY=replace-with-a-long-random-secret
-GOOGLE_API_KEY=replace-with-your-google-api-key
+DATABASE_URL=postgresql+psycopg://postgres:password@localhost:5432/ai_support_db
+SECRET_KEY=replace-with-a-long-random-secret
+GEMINI_API_KEY=replace-with-your-gemini-api-key
 ```
 
-Example database name: `ai_support_db`.
+These variable names match [app/database.py](app/database.py), [app/auth.py](app/auth.py), and [app/rag_service.py](app/rag_service.py).
 
-## Step 3: Configure PostgreSQL
+## PostgreSQL Setup
 
-1. Install PostgreSQL.
-2. Create a database for the project.
-3. Enable the `pgvector` extension:
+Create a database named `ai_support_db`. The application enables the pgvector extension and creates tables when it starts:
 
 ```sql
+CREATE DATABASE ai_support_db;
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-4. Add the database URL to `.env`.
+The database models define:
 
-## Step 4: Database and Models
+- `users` — account email and hashed password
+- `document_chunks` — knowledge text and 768-dimensional Gemini embeddings
+- `chat_history` — user and assistant conversation messages
 
-To be implemented in `app/database.py` and `app/models.py`:
+## Run the API
 
-- Configure the SQLAlchemy engine
-- Create a database session
-- Define database models
-- Create tables at startup or through migrations
-- Store embeddings using pgvector
-
-## Step 5: Request and Response Schemas
-
-Add Pydantic models in `app/schemas.py` for:
-
-- Request validation
-- Response serialization
-- Authentication data
-- Chat and support ticket data
-
-## Step 6: Authentication
-
-Add authentication in `app/auth.py`:
-
-- Password hashing and verification
-- User registration
-- Login
-- JWT creation
-- JWT validation
-- Protected route dependencies
-
-## Step 7: RAG Service
-
-Add retrieval-augmented generation logic in `app/rag_service.py`:
-
-- Prepare and chunk documents
-- Generate embeddings
-- Save embeddings in pgvector
-- Search for relevant documents
-- Build a prompt with retrieved context
-- Send the prompt to the Google GenAI model
-- Return the generated answer
-
-## Step 8: API Routes
-
-Add API routes in `app/main.py`:
-
-- Health check
-- Authentication endpoints
-- Document ingestion endpoints
-- Question-answering endpoints
-- Support ticket or conversation endpoints
-
-## Step 9: Run the Server
-
-Run the application from the project root:
+Start the server from the project root:
 
 ```powershell
 uvicorn app.main:app --reload
@@ -129,33 +101,93 @@ uvicorn app.main:app --reload
 Open:
 
 - API: http://127.0.0.1:8000
-- Swagger documentation: http://127.0.0.1:8000/docs
+- Swagger UI: http://127.0.0.1:8000/docs
 - ReDoc: http://127.0.0.1:8000/redoc
 
-## Step 10: Testing and Improvement
+## API Endpoints
 
-To be completed:
+| Method | Endpoint | Authentication | Description |
+|---|---|---|---|
+| `POST` | `/register` | None | Register a user |
+| `POST` | `/login` | None | Log in using form fields `username` and `password` |
+| `POST` | `/ingest` | Bearer token | Split text into paragraphs and store embeddings |
+| `POST` | `/chat` | Bearer token | Retrieve relevant knowledge and generate a support reply |
 
-- Unit tests
-- API integration tests
-- Database migration setup
-- Request logging
-- Error handling
-- CORS configuration
-- Production deployment
+Authenticated endpoints require:
 
-## Progress Log
+```text
+Authorization: Bearer <access_token>
+```
 
-- [x] Created project structure
-- [x] Installed core Python dependencies
-- [ ] Added environment variables
-- [ ] Configured PostgreSQL and pgvector
-- [ ] Implemented database models
-- [ ] Implemented authentication
-- [ ] Implemented RAG service
-- [ ] Added API routes
-- [ ] Tested the application
+## Usage Example
+
+Register a user:
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/register" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"email":"support@example.com","password":"change-this-password"}'
+```
+
+Log in using OAuth2 form fields:
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/login" `
+  -Method Post `
+  -Body @{ username = "support@example.com"; password = "change-this-password" }
+```
+
+Use the returned token for protected requests:
+
+```powershell
+$token = "<access-token>"
+$headers = @{ Authorization = "Bearer $token" }
+
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/ingest" `
+  -Method Post `
+  -Headers $headers `
+  -ContentType "application/json" `
+  -Body '{"text":"Our support hours are Monday through Friday, 9 AM to 5 PM.`n`nReturns are accepted within 30 days of purchase."}'
+
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/chat" `
+  -Method Post `
+  -Headers $headers `
+  -ContentType "application/json" `
+  -Body '{"message":"What are the support hours?"}'
+```
+
+## How the RAG Flow Works
+
+1. Knowledge text is split into paragraphs.
+2. Gemini `text-embedding-004` creates a 768-dimensional embedding for each paragraph.
+3. Document embeddings are stored in PostgreSQL using pgvector.
+4. A chat question is converted into an embedding.
+5. The three closest document chunks are retrieved by cosine distance.
+6. Recent chat history is added to the prompt.
+7. Gemini `gemini-2.5-flash` generates a grounded support answer.
+8. The question and response are saved to chat history.
+
+## Implementation Status
+
+- [x] FastAPI application and lifespan initialization
+- [x] PostgreSQL and pgvector setup
+- [x] SQLAlchemy models
+- [x] Pydantic request and response schemas
+- [x] User registration and login
+- [x] JWT authentication
+- [x] Knowledge ingestion
+- [x] Embedding-based retrieval
+- [x] Gemini support responses
+- [x] Per-user chat history
+- [ ] Automated tests
+- [ ] Database migrations
+- [ ] Structured logging and monitoring
+- [ ] CORS configuration
+- [ ] Production deployment configuration
 
 ## Development Notes
 
-Add implementation decisions, commands, issues, fixes, and new features here as the project is developed.
+- Passwords are hashed with bcrypt through Passlib.
+- JWTs expire after 60 minutes.
+- The current chunking strategy separates text by blank lines (`\n\n`).
